@@ -1,5 +1,5 @@
 """
-APScheduler background job: poll both platforms every N minutes.
+APScheduler background job: poll eBay every N minutes.
 """
 import asyncio
 import logging
@@ -15,15 +15,14 @@ _scheduler = BackgroundScheduler()
 def _run_sync():
     """Synchronous wrapper to run async sync engine from a background thread."""
     from app.database import SessionLocal
-    from app.sync.engine import process_tcgplayer_orders, process_ebay_orders
+    from app.sync.engine import process_ebay_orders
 
     async def _sync():
         db = SessionLocal()
         try:
-            tcg_count = await process_tcgplayer_orders(db)
             ebay_count = await process_ebay_orders(db)
-            if tcg_count or ebay_count:
-                logger.info("Sync: processed %d TCGPlayer + %d eBay orders", tcg_count, ebay_count)
+            if ebay_count:
+                logger.info("Sync: processed %d eBay orders", ebay_count)
         except Exception as e:
             logger.error("Sync job error: %s", e)
         finally:

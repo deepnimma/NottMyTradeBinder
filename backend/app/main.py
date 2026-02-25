@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import Base, engine
-from app.routers import cards, inventory, orders, settings, webhooks, tcgplayer, ebay
+from app.routers import cards, inventory, orders, settings, webhooks, ebay
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -54,7 +54,6 @@ app.include_router(inventory.router)
 app.include_router(orders.router)
 app.include_router(settings.router)
 app.include_router(webhooks.router)
-app.include_router(tcgplayer.router)
 app.include_router(ebay.router)
 
 

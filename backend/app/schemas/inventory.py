@@ -29,10 +29,8 @@ class InventoryItemOut(BaseModel):
     quantity: int
     tcgplayer_price: Decimal | None
     ebay_price: Decimal | None
-    tcgplayer_sku_id: int | None
     ebay_inventory_sku: str | None
     ebay_offer_id: str | None
-    listed_on_tcgplayer: bool
     listed_on_ebay: bool
     notes: str | None
     created_at: datetime

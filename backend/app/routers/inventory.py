@@ -1,11 +1,13 @@
 import csv
 import io
+import logging
 import re
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi.responses import StreamingResponse
 
 from app.database import get_db
 from app.models.card import Card
@@ -13,6 +15,7 @@ from app.models.inventory import InventoryItem
 from app.schemas.inventory import InventoryItemCreate, InventoryItemUpdate, InventoryItemOut
 
 router = APIRouter(prefix="/api/inventory", tags=["inventory"])
+logger = logging.getLogger(__name__)
 
 _CONDITION_MAP = {
     "near mint": "NM",
@@ -27,6 +30,14 @@ _CONDITION_MAP = {
     "damaged foil": "D",
 }
 
+_CONDITION_REVERSE = {
+    "NM": "Near Mint",
+    "LP": "Lightly Played",
+    "MP": "Moderately Played",
+    "HP": "Heavily Played",
+    "D": "Damaged",
+}
+
 
 def _slugify(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
@@ -36,15 +47,21 @@ def _normalize_game(product_line: str) -> str:
     return re.sub(r"\s+", "_", product_line.strip().lower())
 
 
+def _game_to_title(game: str) -> str:
+    return " ".join(w.capitalize() for w in game.replace("_", " ").split())
+
+
 @router.post("/import/tcgplayer-csv")
 async def import_tcgplayer_csv(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
+    from app.integrations import ebay as ebay_client
+
     content = await file.read()
     reader = csv.DictReader(io.StringIO(content.decode("utf-8-sig")))
 
-    created = updated = skipped = 0
+    created = updated = skipped = ebay_updated = 0
 
     for row in reader:
         try:
@@ -119,8 +136,66 @@ async def import_tcgplayer_csv(
             item.updated_at = datetime.now(timezone.utc)
             updated += 1
 
+            # Push updated qty/price to eBay if already listed
+            if item.listed_on_ebay and item.ebay_inventory_sku and item.ebay_offer_id:
+                try:
+                    await ebay_client.update_quantity(
+                        sku=item.ebay_inventory_sku,
+                        offer_id=item.ebay_offer_id,
+                        new_quantity=qty,
+                        price=float(price or item.ebay_price or 0),
+                    )
+                    ebay_updated += 1
+                except Exception as e:
+                    logger.warning("eBay update failed for item (card %s): %s", card.name, e)
+
     db.commit()
-    return {"created": created, "updated": updated, "skipped": skipped}
+    return {"created": created, "updated": updated, "skipped": skipped, "ebay_updated": ebay_updated}
+
+
+@router.get("/export/tcgplayer-csv")
+def export_tcgplayer_csv(db: Session = Depends(get_db)):
+    items = db.scalars(
+        select(InventoryItem).options(joinedload(InventoryItem.card))
+    ).all()
+
+    headers = [
+        "TCGplayer Id", "Product Line", "Set Name", "Product Name", "Title", "Number", "Rarity",
+        "Condition", "TCG Market Price", "TCG Direct Low", "TCG Low Price With Shipping",
+        "TCG Low Price", "Total Quantity", "Add to Quantity", "TCG Marketplace Price", "Photo URL",
+    ]
+
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=headers)
+    writer.writeheader()
+
+    for item in items:
+        card = item.card
+        writer.writerow({
+            "TCGplayer Id": card.tcgplayer_product_id or "",
+            "Product Line": _game_to_title(card.game),
+            "Set Name": card.set_name,
+            "Product Name": card.name,
+            "Title": "",
+            "Number": card.card_number,
+            "Rarity": "",
+            "Condition": _CONDITION_REVERSE.get(item.condition, item.condition),
+            "TCG Market Price": "",
+            "TCG Direct Low": "",
+            "TCG Low Price With Shipping": "",
+            "TCG Low Price": "",
+            "Total Quantity": item.quantity,
+            "Add to Quantity": 0,
+            "TCG Marketplace Price": str(item.tcgplayer_price) if item.tcgplayer_price else "",
+            "Photo URL": card.image_url or "",
+        })
+
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="tradebinder_export.csv"'},
+    )
 
 
 @router.get("", response_model=list[InventoryItemOut])

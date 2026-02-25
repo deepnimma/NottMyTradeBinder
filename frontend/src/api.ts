@@ -29,10 +29,8 @@ export interface InventoryItemOut {
   quantity: number;
   tcgplayer_price: string | null;
   ebay_price: string | null;
-  tcgplayer_sku_id: number | null;
   ebay_inventory_sku: string | null;
   ebay_offer_id: string | null;
-  listed_on_tcgplayer: boolean;
   listed_on_ebay: boolean;
   notes: string | null;
   created_at: string;
@@ -65,7 +63,6 @@ export const createInventoryItem = (data: {
   card_id: number;
   condition: string;
   quantity: number;
-  tcgplayer_price: string | null;
   ebay_price: string | null;
   notes: string | null;
 }) => api.post<InventoryItemOut>("/inventory", data).then((r) => r.data);
@@ -80,7 +77,7 @@ export const importTCGPlayerCSV = (file: File) => {
   const form = new FormData();
   form.append("file", file);
   return api
-    .post<{ created: number; updated: number; skipped: number }>(
+    .post<{ created: number; updated: number; skipped: number; ebay_updated: number }>(
       "/inventory/import/tcgplayer-csv",
       form,
       { headers: { "Content-Type": "multipart/form-data" } }
@@ -88,11 +85,8 @@ export const importTCGPlayerCSV = (file: File) => {
     .then((r) => r.data);
 };
 
-export const listOnTCGPlayer = (id: number) =>
-  api.post(`/tcgplayer/list/${id}`).then((r) => r.data);
-
-export const delistFromTCGPlayer = (id: number) =>
-  api.post(`/tcgplayer/delist/${id}`).then((r) => r.data);
+export const exportTCGPlayerCSV = () =>
+  window.open("/api/inventory/export/tcgplayer-csv", "_blank");
 
 export const listOnEbay = (id: number) =>
   api.post(`/ebay/list/${id}`).then((r) => r.data);
@@ -111,9 +105,6 @@ export const getEbayAuthUrl = () =>
 
 export const getEbayStatus = () =>
   api.get<{ authenticated: boolean }>("/ebay/status").then((r) => r.data);
-
-export const syncTCGPlayerOrders = () =>
-  api.post("/tcgplayer/orders/sync").then((r) => r.data);
 
 export const syncEbayOrders = () =>
   api.post("/ebay/orders/sync").then((r) => r.data);

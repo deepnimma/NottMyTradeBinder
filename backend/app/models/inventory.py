@@ -19,12 +19,10 @@ class InventoryItem(Base):
     ebay_price: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
 
     # Platform listing identifiers
-    tcgplayer_sku_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     ebay_inventory_sku: Mapped[str | None] = mapped_column(String(128), nullable=True)
     ebay_offer_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     # Listing status
-    listed_on_tcgplayer: Mapped[bool] = mapped_column(Boolean, default=False)
     listed_on_ebay: Mapped[bool] = mapped_column(Boolean, default=False)
 
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)

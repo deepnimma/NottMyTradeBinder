@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { getInventory, getOrders, syncTCGPlayerOrders, syncEbayOrders } from "../api";
+import { getInventory, getOrders, syncEbayOrders } from "../api";
 
 export default function Dashboard() {
   const inv = useQuery({ queryKey: ["inventory"], queryFn: getInventory });
@@ -7,16 +7,14 @@ export default function Dashboard() {
 
   const totalCards = inv.data?.reduce((s, i) => s + i.quantity, 0) ?? 0;
   const totalItems = inv.data?.length ?? 0;
-  const listedTCG = inv.data?.filter((i) => i.listed_on_tcgplayer).length ?? 0;
   const listedEbay = inv.data?.filter((i) => i.listed_on_ebay).length ?? 0;
 
   const recentSales = orders.data?.slice(0, 10) ?? [];
 
-  const handleSync = async (platform: "tcgplayer" | "ebay") => {
+  const handleSync = async () => {
     try {
-      const fn = platform === "tcgplayer" ? syncTCGPlayerOrders : syncEbayOrders;
-      const result = await fn();
-      alert(`Synced ${result.processed} new orders from ${platform}`);
+      const result = await syncEbayOrders();
+      alert(`Synced ${result.processed} new orders from eBay`);
       orders.refetch();
       inv.refetch();
     } catch (e: unknown) {
@@ -30,13 +28,7 @@ export default function Dashboard() {
         <h1 className="text-2xl font-bold">Dashboard</h1>
         <div className="flex gap-2">
           <button
-            onClick={() => handleSync("tcgplayer")}
-            className="px-3 py-1.5 text-sm bg-blue-700 hover:bg-blue-600 rounded"
-          >
-            Sync TCGPlayer
-          </button>
-          <button
-            onClick={() => handleSync("ebay")}
+            onClick={handleSync}
             className="px-3 py-1.5 text-sm bg-yellow-700 hover:bg-yellow-600 rounded"
           >
             Sync eBay
@@ -45,11 +37,10 @@ export default function Dashboard() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         {[
           { label: "Total Cards", value: totalCards, color: "indigo" },
           { label: "Unique Listings", value: totalItems, color: "purple" },
-          { label: "Listed on TCGPlayer", value: listedTCG, color: "blue" },
           { label: "Listed on eBay", value: listedEbay, color: "yellow" },
         ].map(({ label, value, color }) => (
           <div key={label} className={`bg-gray-900 border border-gray-800 rounded-xl p-4`}>
@@ -79,13 +70,7 @@ export default function Dashboard() {
               {recentSales.map((o) => (
                 <tr key={o.id} className="border-b border-gray-800/50">
                   <td className="py-2">
-                    <span
-                      className={`px-2 py-0.5 rounded text-xs font-medium ${
-                        o.platform === "tcgplayer"
-                          ? "bg-blue-900 text-blue-300"
-                          : "bg-yellow-900 text-yellow-300"
-                      }`}
-                    >
+                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-yellow-900 text-yellow-300">
                       {o.platform}
                     </span>
                   </td>

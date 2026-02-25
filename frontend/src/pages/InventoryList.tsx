@@ -4,8 +4,7 @@ import {
   getInventory,
   deleteInventoryItem,
   importTCGPlayerCSV,
-  listOnTCGPlayer,
-  delistFromTCGPlayer,
+  exportTCGPlayerCSV,
   listOnEbay,
   delistFromEbay,
   updateInventoryItem,
@@ -33,7 +32,9 @@ export default function InventoryList() {
     setImporting(true);
     try {
       const result = await importTCGPlayerCSV(file);
-      alert(`Import complete: ${result.created} created, ${result.updated} updated, ${result.skipped} skipped.`);
+      alert(
+        `Import complete: ${result.created} created, ${result.updated} updated, ${result.skipped} skipped, ${result.ebay_updated} eBay updated.`
+      );
       qc.invalidateQueries({ queryKey: ["inventory"] });
     } catch (err: unknown) {
       alert(`Import failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -94,6 +95,12 @@ export default function InventoryList() {
           >
             {importing ? "Importing…" : "Import TCG CSV"}
           </button>
+          <button
+            onClick={() => exportTCGPlayerCSV()}
+            className="px-3 py-1.5 text-sm bg-gray-700 hover:bg-gray-600 rounded whitespace-nowrap"
+          >
+            Export TCG CSV
+          </button>
         </div>
       </div>
 
@@ -123,10 +130,7 @@ export default function InventoryList() {
                   <p className="font-medium truncate">{item.card.name}</p>
                   <p className="text-sm text-gray-400">{item.card.set_name}</p>
                 </div>
-                <SyncStatusBadge
-                  listedOnTCG={item.listed_on_tcgplayer}
-                  listedOnEbay={item.listed_on_ebay}
-                />
+                <SyncStatusBadge listedOnEbay={item.listed_on_ebay} />
               </div>
 
               {editing === item.id ? (
@@ -190,23 +194,6 @@ export default function InventoryList() {
                 >
                   Edit
                 </button>
-                {item.listed_on_tcgplayer ? (
-                  <button
-                    onClick={() => act(item.id, "detcg", () => delistFromTCGPlayer(item.id))}
-                    disabled={busyId === `${item.id}-detcg`}
-                    className="px-2 py-1 text-xs bg-red-900 hover:bg-red-800 rounded text-red-300"
-                  >
-                    De-TCG
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => act(item.id, "tcg", () => listOnTCGPlayer(item.id))}
-                    disabled={busyId === `${item.id}-tcg`}
-                    className="px-2 py-1 text-xs bg-blue-800 hover:bg-blue-700 rounded"
-                  >
-                    → TCG
-                  </button>
-                )}
                 {item.listed_on_ebay ? (
                   <button
                     onClick={() => act(item.id, "deebay", () => delistFromEbay(item.id))}

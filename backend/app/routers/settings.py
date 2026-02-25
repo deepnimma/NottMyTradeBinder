@@ -19,8 +19,6 @@ def _mask(value: str) -> str:
 @router.get("")
 def get_settings():
     return {
-        "tcgplayer_public_key": _mask(settings.tcgplayer_public_key),
-        "tcgplayer_store_key": _mask(settings.tcgplayer_store_key),
         "ebay_client_id": _mask(settings.ebay_client_id),
         "ebay_sandbox": settings.ebay_sandbox,
         "sync_interval_minutes": settings.sync_interval_minutes,

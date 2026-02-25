@@ -6,11 +6,6 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite:///./data/tradebinder.db"
 
-    # TCGPlayer
-    tcgplayer_public_key: str = ""
-    tcgplayer_private_key: str = ""
-    tcgplayer_store_key: str = ""  # store key / seller key
-
     # eBay
     ebay_client_id: str = ""
     ebay_client_secret: str = ""

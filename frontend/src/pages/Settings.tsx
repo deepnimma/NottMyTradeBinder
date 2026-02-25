@@ -18,29 +18,6 @@ export default function Settings() {
     <div className="max-w-xl space-y-6">
       <h1 className="text-2xl font-bold">Settings</h1>
 
-      {/* TCGPlayer */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-3">
-        <h2 className="text-lg font-semibold text-blue-400">TCGPlayer</h2>
-        <p className="text-sm text-gray-400">
-          Configure TCGPlayer API keys in your <code className="bg-gray-800 px-1 rounded">.env</code> file:
-        </p>
-        <div className="bg-gray-800 rounded p-3 text-xs font-mono text-gray-300 space-y-1">
-          <div>TCGPLAYER_PUBLIC_KEY={String(settings?.tcgplayer_public_key ?? "****")}</div>
-          <div>TCGPLAYER_STORE_KEY={String(settings?.tcgplayer_store_key ?? "****")}</div>
-        </div>
-        <p className="text-xs text-gray-500">
-          Apply for API access at{" "}
-          <a
-            href="https://developer.tcgplayer.com"
-            target="_blank"
-            rel="noreferrer"
-            className="text-blue-400 hover:underline"
-          >
-            developer.tcgplayer.com
-          </a>
-        </p>
-      </div>
-
       {/* eBay */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-3">
         <h2 className="text-lg font-semibold text-yellow-400">eBay</h2>

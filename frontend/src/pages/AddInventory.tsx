@@ -7,7 +7,6 @@ export default function AddInventory() {
   const qc = useQueryClient();
   const [selectedCard, setSelectedCard] = useState<CardOut | null>(null);
   const [quantity, setQuantity] = useState(1);
-  const [tcgPrice, setTcgPrice] = useState("");
   const [ebayPrice, setEbayPrice] = useState("");
   const [notes, setNotes] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
@@ -22,7 +21,6 @@ export default function AddInventory() {
         card_id: selectedCard.id,
         condition: "NM",
         quantity,
-        tcgplayer_price: tcgPrice || null,
         ebay_price: ebayPrice || null,
         notes: notes || null,
       });
@@ -32,7 +30,6 @@ export default function AddInventory() {
       // Reset form
       setSelectedCard(null);
       setQuantity(1);
-      setTcgPrice("");
       setEbayPrice("");
       setNotes("");
     } catch (e: unknown) {
@@ -76,31 +73,17 @@ export default function AddInventory() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">TCGPlayer Price ($)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="e.g. 4.99"
-                    value={tcgPrice}
-                    onChange={(e) => setTcgPrice(e.target.value)}
-                    className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">eBay Price ($)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="e.g. 5.49"
-                    value={ebayPrice}
-                    onChange={(e) => setEbayPrice(e.target.value)}
-                    className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">eBay Price ($)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="e.g. 5.49"
+                  value={ebayPrice}
+                  onChange={(e) => setEbayPrice(e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-indigo-500"
+                />
               </div>
 
               <div>

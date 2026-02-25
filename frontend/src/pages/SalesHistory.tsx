@@ -7,7 +7,6 @@ export default function SalesHistory() {
     queryFn: getOrders,
   });
 
-  const tcgOrders = orders.filter((o) => o.platform === "tcgplayer");
   const ebayOrders = orders.filter((o) => o.platform === "ebay");
   const totalRevenue = orders.reduce((s, o) => s + parseFloat(o.sale_price ?? "0"), 0);
 
@@ -18,10 +17,9 @@ export default function SalesHistory() {
       <h1 className="text-2xl font-bold">Sales History</h1>
 
       {/* Summary */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 gap-4">
         {[
           { label: "Total Sales", value: orders.length, color: "indigo" },
-          { label: "TCGPlayer", value: tcgOrders.length, color: "blue" },
           { label: "eBay", value: ebayOrders.length, color: "yellow" },
         ].map(({ label, value, color }) => (
           <div key={label} className="bg-gray-900 border border-gray-800 rounded-xl p-4">
@@ -55,13 +53,7 @@ export default function SalesHistory() {
               {orders.map((o) => (
                 <tr key={o.id} className="border-b border-gray-800/50 hover:bg-gray-800/30">
                   <td className="py-2">
-                    <span
-                      className={`px-2 py-0.5 rounded text-xs font-medium ${
-                        o.platform === "tcgplayer"
-                          ? "bg-blue-900 text-blue-300"
-                          : "bg-yellow-900 text-yellow-300"
-                      }`}
-                    >
+                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-yellow-900 text-yellow-300">
                       {o.platform}
                     </span>
                   </td>
