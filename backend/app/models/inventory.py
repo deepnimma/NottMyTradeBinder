@@ -22,8 +22,15 @@ class InventoryItem(Base):
     ebay_inventory_sku: Mapped[str | None] = mapped_column(String(128), nullable=True)
     ebay_offer_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
+    # Card variant (Normal, Reverse Holo, Holo, First Edition, Promo)
+    variant: Mapped[str] = mapped_column(String(32), default="Normal")
+
     # Listing status
     listed_on_ebay: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # eBay multi-variation group listing (per-set listing)
+    ebay_group_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    ebay_group_offer_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

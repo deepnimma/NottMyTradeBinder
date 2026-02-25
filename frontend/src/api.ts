@@ -26,11 +26,14 @@ export interface InventoryItemOut {
   id: number;
   card: CardOut;
   condition: string;
+  variant: string;
   quantity: number;
   tcgplayer_price: string | null;
   ebay_price: string | null;
   ebay_inventory_sku: string | null;
   ebay_offer_id: string | null;
+  ebay_group_key: string | null;
+  ebay_group_offer_id: string | null;
   listed_on_ebay: boolean;
   notes: string | null;
   created_at: string;
@@ -62,10 +65,22 @@ export const getInventory = () =>
 export const createInventoryItem = (data: {
   card_id: number;
   condition: string;
+  variant: string;
   quantity: number;
   ebay_price: string | null;
   notes: string | null;
 }) => api.post<InventoryItemOut>("/inventory", data).then((r) => r.data);
+
+export const bulkCreateInventoryItems = (
+  items: Array<{
+    card_id: number;
+    condition: string;
+    variant: string;
+    quantity: number;
+    ebay_price: string | null;
+    notes: string | null;
+  }>
+) => api.post<InventoryItemOut[]>("/inventory/bulk", items).then((r) => r.data);
 
 export const updateInventoryItem = (id: number, data: Partial<InventoryItemOut>) =>
   api.patch<InventoryItemOut>(`/inventory/${id}`, data).then((r) => r.data);
@@ -93,6 +108,12 @@ export const listOnEbay = (id: number) =>
 
 export const delistFromEbay = (id: number) =>
   api.post(`/ebay/delist/${id}`).then((r) => r.data);
+
+export const listSetOnEbay = (game: string, set_id: string) =>
+  api.post(`/ebay/list-set/${game}/${set_id}`).then((r) => r.data);
+
+export const delistSetFromEbay = (game: string, set_id: string) =>
+  api.post(`/ebay/delist-set/${game}/${set_id}`).then((r) => r.data);
 
 export const getOrders = () =>
   api.get<OrderOut[]>("/orders").then((r) => r.data);

@@ -3,6 +3,7 @@ import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
 from app.database import Base, engine
 from app.routers import cards, inventory, orders, settings, webhooks, ebay
@@ -16,6 +17,21 @@ async def lifespan(app: FastAPI):
     # Create all tables on startup
     Base.metadata.create_all(bind=engine)
     logger.info("Database tables created/verified")
+
+    # Migrate: add new columns if they don't exist (SQLite-safe)
+    _new_cols = [
+        ("variant", "TEXT NOT NULL DEFAULT 'Normal'"),
+        ("ebay_group_key", "TEXT"),
+        ("ebay_group_offer_id", "TEXT"),
+    ]
+    with engine.connect() as conn:
+        for col, definition in _new_cols:
+            try:
+                conn.execute(text(f"ALTER TABLE inventory_items ADD COLUMN {col} {definition}"))
+                conn.commit()
+                logger.info("Migrated: added column %s to inventory_items", col)
+            except Exception:
+                pass  # Column already exists
 
     # Start background scheduler (wired up in Phase 5)
     try:

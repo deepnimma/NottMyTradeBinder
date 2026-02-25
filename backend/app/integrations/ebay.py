@@ -146,22 +146,72 @@ async def create_or_replace_inventory_item(
     quantity: int,
     image_url: str | None = None,
     condition: str = "LIKE_NEW",
+    aspects: dict[str, list[str]] | None = None,
 ) -> dict:
     """
     PUT /sell/inventory/v1/inventory_item/{sku}
     eBay condition mappings: NM → LIKE_NEW, LP → VERY_GOOD, MP → GOOD, HP → ACCEPTABLE
+    Pass aspects dict when this item is part of a multi-variation group.
     """
+    product: dict = {
+        "title": title,
+        "description": description,
+    }
+    if image_url:
+        product["imageUrls"] = [image_url]
+    if aspects:
+        product["aspects"] = aspects
     payload: dict = {
         "availability": {"shipToLocationAvailability": {"quantity": quantity}},
         "condition": condition,
-        "product": {
-            "title": title,
-            "description": description,
-        },
+        "product": product,
     }
-    if image_url:
-        payload["product"]["imageUrls"] = [image_url]
     return await _request("PUT", f"/sell/inventory/v1/inventory_item/{sku}", json=payload)
+
+
+async def create_or_replace_inventory_item_group(
+    group_key: str,
+    title: str,
+    description: str,
+    sku_list: list[str],
+    image_urls: list[str],
+    aspects: dict[str, list[str]],
+) -> dict:
+    """
+    PUT /sell/inventory/v1/inventory_item_group/{groupKey}
+    Creates a multi-variation listing group linking multiple SKUs.
+    aspects = {"Card Name": ["Charizard", "Pikachu"], "Card Number": ["001", "002"]}
+    """
+    payload: dict = {
+        "title": title,
+        "description": description,
+        "aspects": aspects,
+        "variantSKUs": sku_list,
+    }
+    if image_urls:
+        payload["imageUrls"] = image_urls[:12]  # eBay supports up to 12 images
+    return await _request(
+        "PUT", f"/sell/inventory/v1/inventory_item_group/{group_key}", json=payload
+    )
+
+
+async def create_offer_for_group(
+    group_key: str,
+    price: float,
+    marketplace_id: str = "EBAY_US",
+    category_id: str = "2536",
+) -> dict:
+    """POST /sell/inventory/v1/offer — create an offer for a multi-variation group."""
+    payload = {
+        "inventoryItemGroupKey": group_key,
+        "marketplaceId": marketplace_id,
+        "format": "FIXED_PRICE",
+        "listingDuration": "GTC",
+        "pricingSummary": {"price": {"value": str(round(price, 2)), "currency": "USD"}},
+        "categoryId": category_id,
+        "listingPolicies": get_ebay_policy_ids(),
+    }
+    return await _request("POST", "/sell/inventory/v1/offer", json=payload)
 
 
 async def create_offer(

@@ -232,6 +232,41 @@ def create_inventory_item(body: InventoryItemCreate, db: Session = Depends(get_d
     return item
 
 
+@router.post("/bulk", response_model=list[InventoryItemOut], status_code=201)
+def bulk_create_inventory_items(body: list[InventoryItemCreate], db: Session = Depends(get_db)):
+    """Create or update multiple inventory items at once (upsert by card_id + condition + variant)."""
+    result_ids: list[int] = []
+    for data in body:
+        item = db.scalar(
+            select(InventoryItem).where(
+                InventoryItem.card_id == data.card_id,
+                InventoryItem.condition == data.condition,
+                InventoryItem.variant == data.variant,
+            )
+        )
+        if item is None:
+            item = InventoryItem(**data.model_dump())
+            db.add(item)
+            db.flush()
+        else:
+            item.quantity = data.quantity
+            if data.ebay_price is not None:
+                item.ebay_price = data.ebay_price
+            if data.tcgplayer_price is not None:
+                item.tcgplayer_price = data.tcgplayer_price
+            if data.notes is not None:
+                item.notes = data.notes
+            item.updated_at = datetime.now(timezone.utc)
+        result_ids.append(item.id)
+    db.commit()
+    items = db.scalars(
+        select(InventoryItem)
+        .options(joinedload(InventoryItem.card))
+        .where(InventoryItem.id.in_(result_ids))
+    ).all()
+    return items
+
+
 @router.get("/{item_id}", response_model=InventoryItemOut)
 def get_inventory_item(item_id: int, db: Session = Depends(get_db)):
     item = db.scalar(

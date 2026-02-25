@@ -8,6 +8,7 @@ from app.schemas.card import CardOut
 class InventoryItemCreate(BaseModel):
     card_id: int
     condition: str = "NM"
+    variant: str = "Normal"
     quantity: int
     tcgplayer_price: Decimal | None = None
     ebay_price: Decimal | None = None
@@ -16,6 +17,7 @@ class InventoryItemCreate(BaseModel):
 
 class InventoryItemUpdate(BaseModel):
     condition: str | None = None
+    variant: str | None = None
     quantity: int | None = None
     tcgplayer_price: Decimal | None = None
     ebay_price: Decimal | None = None
@@ -26,11 +28,14 @@ class InventoryItemOut(BaseModel):
     id: int
     card: CardOut
     condition: str
+    variant: str
     quantity: int
     tcgplayer_price: Decimal | None
     ebay_price: Decimal | None
     ebay_inventory_sku: str | None
     ebay_offer_id: str | None
+    ebay_group_key: str | None
+    ebay_group_offer_id: str | None
     listed_on_ebay: bool
     notes: str | None
     created_at: datetime
