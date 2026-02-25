@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   getInventory,
   deleteInventoryItem,
+  importTCGPlayerCSV,
   listOnTCGPlayer,
   delistFromTCGPlayer,
   listOnEbay,
@@ -23,6 +24,24 @@ export default function InventoryList() {
   const [editing, setEditing] = useState<number | null>(null);
   const [editValues, setEditValues] = useState<Partial<InventoryItemOut>>({});
   const [busyId, setBusyId] = useState<string | null>(null); // "<itemId>-<action>"
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImportCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    try {
+      const result = await importTCGPlayerCSV(file);
+      alert(`Import complete: ${result.created} created, ${result.updated} updated, ${result.skipped} skipped.`);
+      qc.invalidateQueries({ queryKey: ["inventory"] });
+    } catch (err: unknown) {
+      alert(`Import failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
 
   const filtered = items.filter(
     (i) =>
@@ -51,15 +70,31 @@ export default function InventoryList() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-bold">Inventory ({items.length})</h1>
-        <input
-          type="search"
-          placeholder="Search cards…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm w-64 focus:outline-none focus:border-indigo-500"
-        />
+        <div className="flex items-center gap-2">
+          <input
+            type="search"
+            placeholder="Search cards…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm w-64 focus:outline-none focus:border-indigo-500"
+          />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv"
+            className="hidden"
+            onChange={handleImportCSV}
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={importing}
+            className="px-3 py-1.5 text-sm bg-indigo-700 hover:bg-indigo-600 disabled:opacity-50 rounded whitespace-nowrap"
+          >
+            {importing ? "Importing…" : "Import TCG CSV"}
+          </button>
+        </div>
       </div>
 
       {filtered.length === 0 && (

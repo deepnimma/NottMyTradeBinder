@@ -76,6 +76,18 @@ export const updateInventoryItem = (id: number, data: Partial<InventoryItemOut>)
 export const deleteInventoryItem = (id: number) =>
   api.delete(`/inventory/${id}`);
 
+export const importTCGPlayerCSV = (file: File) => {
+  const form = new FormData();
+  form.append("file", file);
+  return api
+    .post<{ created: number; updated: number; skipped: number }>(
+      "/inventory/import/tcgplayer-csv",
+      form,
+      { headers: { "Content-Type": "multipart/form-data" } }
+    )
+    .then((r) => r.data);
+};
+
 export const listOnTCGPlayer = (id: number) =>
   api.post(`/tcgplayer/list/${id}`).then((r) => r.data);
 

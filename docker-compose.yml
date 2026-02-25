@@ -2,23 +2,33 @@ services:
   backend:
     build: ./backend
     container_name: tradebinder-backend
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # Defaults used when .env is absent or missing these keys
+      DATABASE_URL: sqlite:///./data/tradebinder.db
+      SYNC_INTERVAL_MINUTES: "5"
+      APP_BASE_URL: http://localhost
+      EBAY_SANDBOX: "false"
     volumes:
       - db-data:/app/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
       interval: 30s
       timeout: 5s
       retries: 3
+      start_period: 10s
 
   frontend:
     build: ./frontend
     container_name: tradebinder-frontend
     ports:
-      - "80:80"
+      - "${FRONTEND_PORT:-8080}:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:
