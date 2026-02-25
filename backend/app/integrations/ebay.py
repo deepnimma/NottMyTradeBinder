@@ -14,6 +14,7 @@ from typing import Any
 
 import httpx
 
+from app.app_config import get_ebay_policy_ids
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -178,13 +179,7 @@ async def create_offer(
         "listingDuration": listing_duration,
         "pricingSummary": {"price": {"value": str(round(price, 2)), "currency": "USD"}},
         "categoryId": category_id,
-        "listingPolicies": {
-            # These must be filled with valid policy IDs from the seller account.
-            # They will be configured via the Settings page.
-            "fulfillmentPolicyId": "",
-            "paymentPolicyId": "",
-            "returnPolicyId": "",
-        },
+        "listingPolicies": get_ebay_policy_ids(),
     }
     return await _request("POST", "/sell/inventory/v1/offer", json=payload)
 
