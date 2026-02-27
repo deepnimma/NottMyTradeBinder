@@ -14,7 +14,6 @@ from typing import Any
 
 import httpx
 
-from app.app_config import get_ebay_policy_ids
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -40,6 +39,15 @@ _refresh_token: str | None = None
 _access_expiry: datetime | None = None
 
 
+def init_tokens_from_env() -> None:
+    """Load refresh token from .env on startup, bypassing the OAuth flow."""
+    global _refresh_token
+    token = settings.ebay_active_refresh_token
+    if token:
+        _refresh_token = token
+        logger.info("eBay refresh token loaded from environment")
+
+
 def _base() -> str:
     return _BASE[settings.ebay_sandbox]
 
@@ -50,15 +58,15 @@ def _auth_base() -> str:
 
 def get_auth_url() -> str:
     """Build the eBay OAuth login URL for the seller to authorize the app."""
-    if not settings.ebay_client_id:
+    if not settings.ebay_active_client_id:
         raise RuntimeError("EBAY_CLIENT_ID not configured")
     scope_str = " ".join(SCOPES)
     callback = f"{settings.app_base_url}/api/ebay/callback"
     return (
         f"{_auth_base()}/oauth2/authorize"
-        f"?client_id={settings.ebay_client_id}"
+        f"?client_id={settings.ebay_active_client_id}"
         f"&response_type=code"
-        f"&redirect_uri={settings.ebay_redirect_uri}"
+        f"&redirect_uri={settings.ebay_active_redirect_uri}"
         f"&scope={scope_str}"
         f"&state=tradebinder"
     )
@@ -74,9 +82,9 @@ async def exchange_code(code: str) -> None:
             data={
                 "grant_type": "authorization_code",
                 "code": code,
-                "redirect_uri": settings.ebay_redirect_uri,
+                "redirect_uri": settings.ebay_active_redirect_uri,
             },
-            auth=(settings.ebay_client_id, settings.ebay_client_secret),
+            auth=(settings.ebay_active_client_id, settings.ebay_active_client_secret),
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
         resp.raise_for_status()
@@ -100,7 +108,7 @@ async def _refresh_access_token() -> None:
                 "refresh_token": _refresh_token,
                 "scope": " ".join(SCOPES),
             },
-            auth=(settings.ebay_client_id, settings.ebay_client_secret),
+            auth=(settings.ebay_active_client_id, settings.ebay_active_client_secret),
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
         resp.raise_for_status()
@@ -209,7 +217,7 @@ async def create_offer_for_group(
         "listingDuration": "GTC",
         "pricingSummary": {"price": {"value": str(round(price, 2)), "currency": "USD"}},
         "categoryId": category_id,
-        "listingPolicies": get_ebay_policy_ids(),
+        "listingPolicies": settings.ebay_active_policy_ids,
     }
     return await _request("POST", "/sell/inventory/v1/offer", json=payload)
 
@@ -229,7 +237,7 @@ async def create_offer(
         "listingDuration": listing_duration,
         "pricingSummary": {"price": {"value": str(round(price, 2)), "currency": "USD"}},
         "categoryId": category_id,
-        "listingPolicies": get_ebay_policy_ids(),
+        "listingPolicies": settings.ebay_active_policy_ids,
     }
     return await _request("POST", "/sell/inventory/v1/offer", json=payload)
 

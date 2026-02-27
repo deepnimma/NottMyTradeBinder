@@ -34,6 +34,10 @@ async def lifespan(app: FastAPI):
             except Exception:
                 pass  # Column already exists
 
+    # Load eBay tokens from env (skips OAuth flow for local use)
+    from app.integrations.ebay import init_tokens_from_env
+    init_tokens_from_env()
+
     # Start background scheduler (wired up in Phase 5)
     try:
         from app.sync.scheduler import start_scheduler, stop_scheduler

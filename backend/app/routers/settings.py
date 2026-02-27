@@ -19,7 +19,7 @@ def _mask(value: str) -> str:
 @router.get("")
 def get_settings():
     return {
-        "ebay_client_id": _mask(settings.ebay_client_id),
+        "ebay_client_id": _mask(settings.ebay_active_client_id),
         "ebay_sandbox": settings.ebay_sandbox,
         "sync_interval_minutes": settings.sync_interval_minutes,
         "app_base_url": settings.app_base_url,

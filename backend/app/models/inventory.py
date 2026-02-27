@@ -27,6 +27,7 @@ class InventoryItem(Base):
 
     # Listing status
     listed_on_ebay: Mapped[bool] = mapped_column(Boolean, default=False)
+    listed_on_tcgplayer: Mapped[bool] = mapped_column(Boolean, default=False)
     staged: Mapped[bool] = mapped_column(Boolean, default=False)  # local changes not yet pushed to eBay
 
     # eBay multi-variation group listing (per-set listing)
