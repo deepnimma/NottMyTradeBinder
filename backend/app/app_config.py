@@ -2,7 +2,7 @@ from pathlib import Path
 
 import yaml
 
-_ROOT = Path(__file__).parents[3]  # project root (3 levels up from app/)
+_ROOT = Path(__file__).parents[1]  # backend root (app_config.py → app/ → backend/)
 
 
 def _load() -> dict:

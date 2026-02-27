@@ -9,6 +9,7 @@ import {
   delistFromEbay,
   listSetOnEbay,
   delistSetFromEbay,
+  publishSetToEbay,
   updateInventoryItem,
   InventoryItemOut,
 } from "../api";
@@ -35,7 +36,7 @@ export default function InventoryList() {
     try {
       const result = await importTCGPlayerCSV(file);
       alert(
-        `Import complete: ${result.created} created, ${result.updated} updated, ${result.skipped} skipped, ${result.ebay_updated} eBay updated.`
+        `Import complete: ${result.created} created, ${result.updated} updated, ${result.skipped} skipped.\n${result.staged} item(s) staged — use "Publish to eBay" per set to push changes.`
       );
       qc.invalidateQueries({ queryKey: ["inventory"] });
     } catch (err: unknown) {
@@ -82,7 +83,7 @@ export default function InventoryList() {
     {}
   );
 
-  if (isLoading) return <p className="text-gray-500">Loading inventory…</p>;
+  if (isLoading) return <p className="text-neutral-500">Loading inventory…</p>;
 
   return (
     <div className="space-y-4">
@@ -94,19 +95,19 @@ export default function InventoryList() {
             placeholder="Search cards…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm w-64 focus:outline-none focus:border-indigo-500"
+            className="bg-[#1a1a1a] border border-[#333] rounded px-3 py-1.5 text-sm w-64 focus:outline-none focus:border-red-600"
           />
           <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleImportCSV} />
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={importing}
-            className="px-3 py-1.5 text-sm bg-indigo-700 hover:bg-indigo-600 disabled:opacity-50 rounded whitespace-nowrap"
+            className="px-3 py-1.5 text-sm bg-red-700 hover:bg-red-600 disabled:opacity-50 rounded whitespace-nowrap"
           >
             {importing ? "Importing…" : "Import TCG CSV"}
           </button>
           <button
             onClick={() => exportTCGPlayerCSV()}
-            className="px-3 py-1.5 text-sm bg-gray-700 hover:bg-gray-600 rounded whitespace-nowrap"
+            className="px-3 py-1.5 text-sm bg-[#222] hover:bg-[#2a2a2a] rounded whitespace-nowrap"
           >
             Export TCG CSV
           </button>
@@ -114,48 +115,66 @@ export default function InventoryList() {
       </div>
 
       {filtered.length === 0 && (
-        <p className="text-gray-500 text-sm">No cards found. Add some via "Add Cards".</p>
+        <p className="text-neutral-500 text-sm">No cards found. Add some via "Add Cards".</p>
       )}
 
       {Object.entries(setGroups).map(([groupKey, group]) => {
         const groupBusyKey = `set-${groupKey}`;
-        // Check if any item in this set is listed as a group
-        const groupListedItem = group.items.find((i) => !!i.ebay_group_key);
         const allGroupListed = group.items.length > 0 && group.items.every((i) => !!i.ebay_group_key);
+        const stagedCount = group.items.filter((i) => i.staged).length;
 
         return (
           <div key={groupKey} className="space-y-2">
             {/* Set header */}
             <div className="flex items-center justify-between px-1">
-              <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wide">
+              <h2 className="text-sm font-semibold text-neutral-400 uppercase tracking-wide">
                 {group.set_name}
-                <span className="ml-2 text-gray-600 font-normal normal-case">({group.items.length} cards)</span>
+                <span className="ml-2 text-neutral-600 font-normal normal-case">({group.items.length} cards)</span>
+                {stagedCount > 0 && (
+                  <span className="ml-2 text-xs bg-orange-900/60 text-orange-300 rounded px-1.5 py-0.5 normal-case font-normal">
+                    {stagedCount} staged
+                  </span>
+                )}
               </h2>
-              {allGroupListed ? (
-                <button
-                  onClick={() => act(groupBusyKey, () => delistSetFromEbay(group.game, group.set_id))}
-                  disabled={busyId === groupBusyKey}
-                  className="px-2 py-1 text-xs bg-red-900 hover:bg-red-800 rounded text-red-300"
-                >
-                  {busyId === groupBusyKey ? "Delisting…" : "Delist Set from eBay"}
-                </button>
-              ) : (
-                <button
-                  onClick={() => act(groupBusyKey, () => listSetOnEbay(group.game, group.set_id))}
-                  disabled={busyId === groupBusyKey}
-                  title="List all cards in this set as one eBay multi-variation listing"
-                  className="px-2 py-1 text-xs bg-yellow-800 hover:bg-yellow-700 rounded"
-                >
-                  {busyId === groupBusyKey ? "Listing…" : "List Set on eBay"}
-                </button>
-              )}
+              <div className="flex items-center gap-1.5">
+                {/* Publish button — visible when there are staged items */}
+                {stagedCount > 0 && (
+                  <button
+                    onClick={() => act(`${groupBusyKey}-publish`, () => publishSetToEbay(group.game, group.set_id))}
+                    disabled={busyId === `${groupBusyKey}-publish`}
+                    title={allGroupListed ? "Push staged changes to existing eBay listing" : "Create new eBay listing with staged items"}
+                    className="px-2 py-1 text-xs bg-green-800 hover:bg-green-700 rounded text-green-200"
+                  >
+                    {busyId === `${groupBusyKey}-publish` ? "Publishing…" : `Publish to eBay (${stagedCount})`}
+                  </button>
+                )}
+                {/* Delist / List Set button */}
+                {allGroupListed ? (
+                  <button
+                    onClick={() => act(groupBusyKey, () => delistSetFromEbay(group.game, group.set_id))}
+                    disabled={busyId === groupBusyKey}
+                    className="px-2 py-1 text-xs bg-red-900 hover:bg-red-800 rounded text-red-300"
+                  >
+                    {busyId === groupBusyKey ? "Delisting…" : "Delist Set"}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => act(groupBusyKey, () => listSetOnEbay(group.game, group.set_id))}
+                    disabled={busyId === groupBusyKey}
+                    title="List all priced cards in this set as one eBay multi-variation listing"
+                    className="px-2 py-1 text-xs bg-yellow-800 hover:bg-yellow-700 rounded"
+                  >
+                    {busyId === groupBusyKey ? "Listing…" : "List Set on eBay"}
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Cards in this set */}
             {group.items.map((item) => (
               <div
                 key={item.id}
-                className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex items-start gap-4"
+                className="bg-[#111111] border border-[#2a2a2a] rounded-xl p-4 flex items-start gap-4"
               >
                 {/* Card image */}
                 {item.card.image_url && (
@@ -173,21 +192,26 @@ export default function InventoryList() {
                       <div className="flex items-center gap-2">
                         <p className="font-medium truncate">{item.card.name}</p>
                         {item.card.card_number && !item.card.card_number.startsWith("tcg-") && (
-                          <span className="text-xs text-gray-500">#{item.card.card_number}</span>
+                          <span className="text-xs text-neutral-500">#{item.card.card_number}</span>
                         )}
                       </div>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-xs bg-gray-800 text-gray-300 rounded px-1.5 py-0.5">
+                        <span className="text-xs bg-[#1e1e1e] text-neutral-300 rounded px-1.5 py-0.5">
                           {item.condition}
                         </span>
                         {item.variant && item.variant !== "Normal" && (
-                          <span className="text-xs bg-indigo-900/60 text-indigo-300 rounded px-1.5 py-0.5">
+                          <span className="text-xs bg-red-900/40 text-red-300 rounded px-1.5 py-0.5">
                             {item.variant}
                           </span>
                         )}
                         {item.ebay_group_key && (
                           <span className="text-xs bg-yellow-900/40 text-yellow-400 rounded px-1.5 py-0.5">
                             Set listing
+                          </span>
+                        )}
+                        {item.staged && (
+                          <span className="text-xs bg-orange-900/50 text-orange-300 rounded px-1.5 py-0.5">
+                            staged
                           </span>
                         )}
                       </div>
@@ -197,29 +221,29 @@ export default function InventoryList() {
 
                   {editing === item.id ? (
                     <div className="mt-2 flex flex-wrap gap-2 items-center">
-                      <label className="text-xs text-gray-500">Qty:</label>
+                      <label className="text-xs text-neutral-500">Qty:</label>
                       <input
                         type="number"
                         min={0}
                         defaultValue={item.quantity}
                         onChange={(e) => setEditValues((v) => ({ ...v, quantity: Number(e.target.value) }))}
-                        className="w-16 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs"
+                        className="w-16 bg-[#1a1a1a] border border-[#333] rounded px-2 py-1 text-xs focus:outline-none focus:border-red-600"
                       />
-                      <label className="text-xs text-gray-500">TCG $:</label>
+                      <label className="text-xs text-neutral-500">TCG $:</label>
                       <input
                         type="number"
                         step="0.01"
                         defaultValue={item.tcgplayer_price ?? ""}
                         onChange={(e) => setEditValues((v) => ({ ...v, tcgplayer_price: e.target.value }))}
-                        className="w-20 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs"
+                        className="w-20 bg-[#1a1a1a] border border-[#333] rounded px-2 py-1 text-xs focus:outline-none focus:border-red-600"
                       />
-                      <label className="text-xs text-gray-500">eBay $:</label>
+                      <label className="text-xs text-neutral-500">eBay $:</label>
                       <input
                         type="number"
                         step="0.01"
                         defaultValue={item.ebay_price ?? ""}
                         onChange={(e) => setEditValues((v) => ({ ...v, ebay_price: e.target.value }))}
-                        className="w-20 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs"
+                        className="w-20 bg-[#1a1a1a] border border-[#333] rounded px-2 py-1 text-xs focus:outline-none focus:border-red-600"
                       />
                       <button
                         onClick={() => saveEdit(item)}
@@ -230,17 +254,17 @@ export default function InventoryList() {
                       </button>
                       <button
                         onClick={() => setEditing(null)}
-                        className="px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 rounded"
+                        className="px-2 py-1 text-xs bg-[#222] hover:bg-[#2a2a2a] rounded"
                       >
                         Cancel
                       </button>
                     </div>
                   ) : (
                     <div className="mt-1 flex flex-wrap items-center gap-3 text-sm">
-                      <span className="text-gray-400">Qty: <strong className="text-white">{item.quantity}</strong></span>
+                      <span className="text-neutral-400">Qty: <strong className="text-white">{item.quantity}</strong></span>
                       {item.tcgplayer_price && <span className="text-blue-400">TCG: ${item.tcgplayer_price}</span>}
                       {item.ebay_price && <span className="text-yellow-400">eBay: ${item.ebay_price}</span>}
-                      {item.notes && <span className="text-gray-500 italic text-xs">{item.notes}</span>}
+                      {item.notes && <span className="text-neutral-500 italic text-xs">{item.notes}</span>}
                     </div>
                   )}
                 </div>
@@ -250,7 +274,7 @@ export default function InventoryList() {
                   <div className="flex flex-col gap-1 flex-shrink-0">
                     <button
                       onClick={() => { setEditing(item.id); setEditValues({}); }}
-                      className="px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 rounded"
+                      className="px-2 py-1 text-xs bg-[#222] hover:bg-[#2a2a2a] rounded"
                     >
                       Edit
                     </button>
@@ -280,7 +304,7 @@ export default function InventoryList() {
                           act(`${item.id}-del`, () => deleteInventoryItem(item.id));
                         }
                       }}
-                      className="px-2 py-1 text-xs bg-gray-800 hover:bg-red-900 rounded text-gray-500 hover:text-red-300"
+                      className="px-2 py-1 text-xs bg-[#1a1a1a] hover:bg-red-900 rounded text-neutral-500 hover:text-red-300"
                     >
                       Delete
                     </button>

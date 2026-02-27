@@ -23,6 +23,7 @@ async def lifespan(app: FastAPI):
         ("variant", "TEXT NOT NULL DEFAULT 'Normal'"),
         ("ebay_group_key", "TEXT"),
         ("ebay_group_offer_id", "TEXT"),
+        ("staged", "BOOLEAN NOT NULL DEFAULT 0"),
     ]
     with engine.connect() as conn:
         for col, definition in _new_cols:

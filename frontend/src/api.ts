@@ -35,6 +35,7 @@ export interface InventoryItemOut {
   ebay_group_key: string | null;
   ebay_group_offer_id: string | null;
   listed_on_ebay: boolean;
+  staged: boolean;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -92,7 +93,7 @@ export const importTCGPlayerCSV = (file: File) => {
   const form = new FormData();
   form.append("file", file);
   return api
-    .post<{ created: number; updated: number; skipped: number; ebay_updated: number }>(
+    .post<{ created: number; updated: number; skipped: number; staged: number }>(
       "/inventory/import/tcgplayer-csv",
       form,
       { headers: { "Content-Type": "multipart/form-data" } }
@@ -111,6 +112,9 @@ export const delistFromEbay = (id: number) =>
 
 export const listSetOnEbay = (game: string, set_id: string) =>
   api.post(`/ebay/list-set/${game}/${set_id}`).then((r) => r.data);
+
+// Alias: publish staged changes for a set (creates if new, updates if existing)
+export const publishSetToEbay = listSetOnEbay;
 
 export const delistSetFromEbay = (game: string, set_id: string) =>
   api.post(`/ebay/delist-set/${game}/${set_id}`).then((r) => r.data);

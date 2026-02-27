@@ -56,12 +56,10 @@ async def import_tcgplayer_csv(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
-    from app.integrations import ebay as ebay_client
-
     content = await file.read()
     reader = csv.DictReader(io.StringIO(content.decode("utf-8-sig")))
 
-    created = updated = skipped = ebay_updated = 0
+    created = updated = skipped = staged = 0
 
     for row in reader:
         try:
@@ -126,6 +124,7 @@ async def import_tcgplayer_csv(
                 condition=condition,
                 quantity=qty,
                 tcgplayer_price=price,
+                staged=True,
             )
             db.add(item)
             created += 1
@@ -133,24 +132,13 @@ async def import_tcgplayer_csv(
             item.quantity = qty
             if price is not None:
                 item.tcgplayer_price = price
+            item.staged = True
             item.updated_at = datetime.now(timezone.utc)
             updated += 1
-
-            # Push updated qty/price to eBay if already listed
-            if item.listed_on_ebay and item.ebay_inventory_sku and item.ebay_offer_id:
-                try:
-                    await ebay_client.update_quantity(
-                        sku=item.ebay_inventory_sku,
-                        offer_id=item.ebay_offer_id,
-                        new_quantity=qty,
-                        price=float(price or item.ebay_price or 0),
-                    )
-                    ebay_updated += 1
-                except Exception as e:
-                    logger.warning("eBay update failed for item (card %s): %s", card.name, e)
+        staged += 1
 
     db.commit()
-    return {"created": created, "updated": updated, "skipped": skipped, "ebay_updated": ebay_updated}
+    return {"created": created, "updated": updated, "skipped": skipped, "staged": staged}
 
 
 @router.get("/export/tcgplayer-csv")

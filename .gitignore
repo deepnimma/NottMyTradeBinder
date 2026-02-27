@@ -11,6 +11,7 @@ node_modules/
 .env
 .env.*
 # allow committing an example file
+!.env.example
 
 # Testing and coverage
 coverage/
@@ -269,3 +270,4 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+.playwright-mcp/

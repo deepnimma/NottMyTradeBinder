@@ -37,6 +37,7 @@ class InventoryItemOut(BaseModel):
     ebay_group_key: str | None
     ebay_group_offer_id: str | None
     listed_on_ebay: bool
+    staged: bool
     notes: str | None
     created_at: datetime
     updated_at: datetime
