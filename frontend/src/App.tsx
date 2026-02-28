@@ -15,11 +15,11 @@ const nav = [
 
 export default function App() {
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100 flex flex-col">
+    <div className="min-h-screen bg-black text-white flex flex-col">
       {/* Header */}
-      <header className="bg-gray-900 border-b border-gray-800 px-6 py-3 flex items-center gap-8">
-        <span className="text-xl font-bold text-indigo-400">NottMyTradeBinder</span>
-        <nav className="flex gap-4">
+      <header className="bg-[#111111] border-b border-[#2a2a2a] px-6 py-3 flex items-center gap-8">
+        <span className="text-xl font-bold text-red-500">NottMyTradeBinder</span>
+        <nav className="flex gap-1">
           {nav.map(({ to, label }) => (
             <NavLink
               key={to}
@@ -28,8 +28,8 @@ export default function App() {
               className={({ isActive }) =>
                 `text-sm px-3 py-1.5 rounded transition-colors ${
                   isActive
-                    ? "bg-indigo-600 text-white"
-                    : "text-gray-400 hover:text-white hover:bg-gray-800"
+                    ? "bg-red-700 text-white"
+                    : "text-neutral-400 hover:text-white hover:bg-[#1e1e1e]"
                 }`
               }
             >

@@ -19,7 +19,7 @@ export default function Settings() {
       <h1 className="text-2xl font-bold">Settings</h1>
 
       {/* eBay */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-3">
+      <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl p-5 space-y-3">
         <h2 className="text-lg font-semibold text-yellow-400">eBay</h2>
         <div className="flex items-center gap-3">
           <div
@@ -27,7 +27,7 @@ export default function Settings() {
               ebayStatus?.authenticated ? "bg-green-400" : "bg-red-500"
             }`}
           />
-          <span className="text-sm text-gray-300">
+          <span className="text-sm text-neutral-300">
             {ebayStatus?.authenticated ? "Connected" : "Not connected"}
           </span>
         </div>
@@ -37,8 +37,8 @@ export default function Settings() {
         >
           {ebayStatus?.authenticated ? "Re-authorize eBay" : "Connect eBay Account"}
         </button>
-        <p className="text-xs text-gray-500">
-          Configure eBay credentials in <code className="bg-gray-800 px-1 rounded">.env</code> first.
+        <p className="text-xs text-neutral-500">
+          Configure eBay credentials in <code className="bg-[#1a1a1a] px-1 rounded">.env</code> first.
           Apply at{" "}
           <a
             href="https://developer.ebay.com"
@@ -49,32 +49,32 @@ export default function Settings() {
             developer.ebay.com
           </a>
         </p>
-        <div className="bg-gray-800 rounded p-3 text-xs font-mono text-gray-300 space-y-1">
+        <div className="bg-[#1a1a1a] rounded p-3 text-xs font-mono text-neutral-300 space-y-1">
           <div>EBAY_CLIENT_ID={String(settings?.ebay_client_id ?? "****")}</div>
           <div>EBAY_SANDBOX={String(settings?.ebay_sandbox ?? false)}</div>
         </div>
       </div>
 
       {/* Sync */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-2">
+      <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl p-5 space-y-2">
         <h2 className="text-lg font-semibold">Sync Settings</h2>
-        <p className="text-sm text-gray-400">
+        <p className="text-sm text-neutral-400">
           Sync interval:{" "}
           <span className="text-white font-medium">
             {String(settings?.sync_interval_minutes ?? 5)} minutes
           </span>
         </p>
-        <p className="text-xs text-gray-500">
-          Change <code className="bg-gray-800 px-1 rounded">SYNC_INTERVAL_MINUTES</code> in .env and restart.
+        <p className="text-xs text-neutral-500">
+          Change <code className="bg-[#1a1a1a] px-1 rounded">SYNC_INTERVAL_MINUTES</code> in .env and restart.
         </p>
-        <p className="text-sm text-gray-400 mt-2">
+        <p className="text-sm text-neutral-400 mt-2">
           App base URL:{" "}
           <span className="text-white font-mono text-xs">
             {String(settings?.app_base_url ?? "")}
           </span>
         </p>
-        <p className="text-xs text-gray-500">
-          Set <code className="bg-gray-800 px-1 rounded">APP_BASE_URL</code> to your server's public URL (used for eBay OAuth callback).
+        <p className="text-xs text-neutral-500">
+          Set <code className="bg-[#1a1a1a] px-1 rounded">APP_BASE_URL</code> to your server's public URL (used for eBay OAuth callback).
         </p>
       </div>
     </div>

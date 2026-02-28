@@ -1,8 +1,9 @@
 from contextlib import asynccontextmanager
 import logging
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from app.database import Base, engine
@@ -23,6 +24,7 @@ async def lifespan(app: FastAPI):
         ("variant", "TEXT NOT NULL DEFAULT 'Normal'"),
         ("ebay_group_key", "TEXT"),
         ("ebay_group_offer_id", "TEXT"),
+        ("staged", "BOOLEAN NOT NULL DEFAULT 0"),
     ]
     with engine.connect() as conn:
         for col, definition in _new_cols:
@@ -32,6 +34,10 @@ async def lifespan(app: FastAPI):
                 logger.info("Migrated: added column %s to inventory_items", col)
             except Exception:
                 pass  # Column already exists
+
+    # Load eBay tokens from env (skips OAuth flow for local use)
+    from app.integrations.ebay import init_tokens_from_env
+    init_tokens_from_env()
 
     # Start background scheduler (wired up in Phase 5)
     try:
@@ -56,6 +62,11 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+@app.exception_handler(RuntimeError)
+async def runtime_error_handler(request: Request, exc: RuntimeError):
+    return JSONResponse(status_code=400, content={"detail": str(exc)})
+
 
 app.add_middleware(
     CORSMiddleware,

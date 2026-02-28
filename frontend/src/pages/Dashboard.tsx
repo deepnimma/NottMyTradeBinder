@@ -29,7 +29,7 @@ export default function Dashboard() {
         <div className="flex gap-2">
           <button
             onClick={handleSync}
-            className="px-3 py-1.5 text-sm bg-yellow-700 hover:bg-yellow-600 rounded"
+            className="px-3 py-1.5 text-sm bg-red-700 hover:bg-red-600 rounded transition-colors"
           >
             Sync eBay
           </button>
@@ -38,27 +38,29 @@ export default function Dashboard() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        {[
-          { label: "Total Cards", value: totalCards, color: "indigo" },
-          { label: "Unique Listings", value: totalItems, color: "purple" },
-          { label: "Listed on eBay", value: listedEbay, color: "yellow" },
-        ].map(({ label, value, color }) => (
-          <div key={label} className={`bg-gray-900 border border-gray-800 rounded-xl p-4`}>
-            <p className="text-xs text-gray-500 uppercase tracking-wide">{label}</p>
-            <p className={`text-3xl font-bold mt-1 text-${color}-400`}>{value}</p>
-          </div>
-        ))}
+        <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl p-4">
+          <p className="text-xs text-neutral-500 uppercase tracking-wide">Total Cards</p>
+          <p className="text-3xl font-bold mt-1 text-red-400">{totalCards}</p>
+        </div>
+        <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl p-4">
+          <p className="text-xs text-neutral-500 uppercase tracking-wide">Unique Listings</p>
+          <p className="text-3xl font-bold mt-1 text-red-400">{totalItems}</p>
+        </div>
+        <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl p-4">
+          <p className="text-xs text-neutral-500 uppercase tracking-wide">Listed on eBay</p>
+          <p className="text-3xl font-bold mt-1 text-yellow-400">{listedEbay}</p>
+        </div>
       </div>
 
       {/* Recent sales */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+      <div className="bg-[#111111] border border-[#2a2a2a] rounded-xl p-4">
         <h2 className="text-lg font-semibold mb-3">Recent Sales</h2>
         {recentSales.length === 0 ? (
-          <p className="text-gray-500 text-sm">No sales recorded yet.</p>
+          <p className="text-neutral-500 text-sm">No sales recorded yet.</p>
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-gray-500 border-b border-gray-800">
+              <tr className="text-left text-neutral-500 border-b border-[#2a2a2a]">
                 <th className="pb-2">Platform</th>
                 <th className="pb-2">Order ID</th>
                 <th className="pb-2">Qty</th>
@@ -68,16 +70,16 @@ export default function Dashboard() {
             </thead>
             <tbody>
               {recentSales.map((o) => (
-                <tr key={o.id} className="border-b border-gray-800/50">
+                <tr key={o.id} className="border-b border-[#2a2a2a]/50">
                   <td className="py-2">
-                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-yellow-900 text-yellow-300">
+                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-yellow-900/60 text-yellow-300">
                       {o.platform}
                     </span>
                   </td>
-                  <td className="py-2 text-gray-400">{o.external_order_id}</td>
+                  <td className="py-2 text-neutral-400">{o.external_order_id}</td>
                   <td className="py-2">{o.quantity_sold}</td>
                   <td className="py-2">${o.sale_price ?? "—"}</td>
-                  <td className="py-2 text-gray-500">
+                  <td className="py-2 text-neutral-500">
                     {o.sold_at ? new Date(o.sold_at).toLocaleDateString() : "—"}
                   </td>
                 </tr>

@@ -20,14 +20,19 @@ logger = logging.getLogger(__name__)
 _CONDITION_MAP = {
     "near mint": "NM",
     "near mint foil": "NM",
+    "near mint holofoil": "NM",
     "lightly played": "LP",
     "lightly played foil": "LP",
+    "lightly played holofoil": "LP",
     "moderately played": "MP",
     "moderately played foil": "MP",
+    "moderately played holofoil": "MP",
     "heavily played": "HP",
     "heavily played foil": "HP",
+    "heavily played holofoil": "HP",
     "damaged": "D",
     "damaged foil": "D",
+    "damaged holofoil": "D",
 }
 
 _CONDITION_REVERSE = {
@@ -43,8 +48,18 @@ def _slugify(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
 
 
+_GAME_NAME_MAP = {
+    "pokémon": "pokemon",
+    "pokemon": "pokemon",
+    "pokemon tcg": "pokemon",
+    "weiss schwarz": "weiss_schwarz",
+    "weiß schwarz": "weiss_schwarz",
+    "weissschwarz": "weiss_schwarz",
+}
+
 def _normalize_game(product_line: str) -> str:
-    return re.sub(r"\s+", "_", product_line.strip().lower())
+    key = product_line.strip().lower()
+    return _GAME_NAME_MAP.get(key) or re.sub(r"\s+", "_", key)
 
 
 def _game_to_title(game: str) -> str:
@@ -56,12 +71,10 @@ async def import_tcgplayer_csv(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
-    from app.integrations import ebay as ebay_client
-
     content = await file.read()
     reader = csv.DictReader(io.StringIO(content.decode("utf-8-sig")))
 
-    created = updated = skipped = ebay_updated = 0
+    created = updated = skipped = staged = 0
 
     for row in reader:
         try:
@@ -126,6 +139,7 @@ async def import_tcgplayer_csv(
                 condition=condition,
                 quantity=qty,
                 tcgplayer_price=price,
+                staged=True,
             )
             db.add(item)
             created += 1
@@ -133,24 +147,13 @@ async def import_tcgplayer_csv(
             item.quantity = qty
             if price is not None:
                 item.tcgplayer_price = price
+            item.staged = True
             item.updated_at = datetime.now(timezone.utc)
             updated += 1
-
-            # Push updated qty/price to eBay if already listed
-            if item.listed_on_ebay and item.ebay_inventory_sku and item.ebay_offer_id:
-                try:
-                    await ebay_client.update_quantity(
-                        sku=item.ebay_inventory_sku,
-                        offer_id=item.ebay_offer_id,
-                        new_quantity=qty,
-                        price=float(price or item.ebay_price or 0),
-                    )
-                    ebay_updated += 1
-                except Exception as e:
-                    logger.warning("eBay update failed for item (card %s): %s", card.name, e)
+        staged += 1
 
     db.commit()
-    return {"created": created, "updated": updated, "skipped": skipped, "ebay_updated": ebay_updated}
+    return {"created": created, "updated": updated, "skipped": skipped, "staged": staged}
 
 
 @router.get("/export/tcgplayer-csv")
@@ -201,7 +204,7 @@ def export_tcgplayer_csv(db: Session = Depends(get_db)):
 @router.get("", response_model=list[InventoryItemOut])
 def list_inventory(
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 10000,
     game: str | None = Query(None),
     db: Session = Depends(get_db),
 ):
@@ -291,6 +294,35 @@ def update_inventory_item(item_id: int, body: InventoryItemUpdate, db: Session =
         select(InventoryItem).options(joinedload(InventoryItem.card)).where(InventoryItem.id == item_id)
     )
     return item
+
+
+@router.post("/bulk-price")
+def bulk_price_update(
+    body: list[dict],  # [{id, ebay_price}]
+    db: Session = Depends(get_db),
+):
+    """Set ebay_price on multiple items at once."""
+    updated = 0
+    now = datetime.now(timezone.utc)
+    for entry in body:
+        item = db.get(InventoryItem, entry["id"])
+        if item and entry.get("ebay_price") is not None:
+            item.ebay_price = Decimal(str(entry["ebay_price"]))
+            item.updated_at = now
+            updated += 1
+    db.commit()
+    return {"updated": updated}
+
+
+@router.delete("/set/{game}/{set_id}", status_code=204)
+def delete_set_inventory(game: str, set_id: str, db: Session = Depends(get_db)):
+    """Delete all inventory items (and their card records) for a set."""
+    items = db.scalars(
+        select(InventoryItem).join(Card).where(Card.game == game, Card.set_id == set_id)
+    ).all()
+    for item in items:
+        db.delete(item)
+    db.commit()
 
 
 @router.delete("/{item_id}", status_code=204)

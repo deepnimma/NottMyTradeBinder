@@ -37,6 +37,8 @@ class InventoryItemOut(BaseModel):
     ebay_group_key: str | None
     ebay_group_offer_id: str | None
     listed_on_ebay: bool
+    listed_on_tcgplayer: bool
+    staged: bool
     notes: str | None
     created_at: datetime
     updated_at: datetime
