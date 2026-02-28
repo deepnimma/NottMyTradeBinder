@@ -86,8 +86,14 @@ export const bulkCreateInventoryItems = (
 export const updateInventoryItem = (id: number, data: Partial<InventoryItemOut>) =>
   api.patch<InventoryItemOut>(`/inventory/${id}`, data).then((r) => r.data);
 
+export const bulkPriceUpdate = (updates: { id: number; ebay_price: number }[]) =>
+  api.post<{ updated: number }>("/inventory/bulk-price", updates).then((r) => r.data);
+
 export const deleteInventoryItem = (id: number) =>
   api.delete(`/inventory/${id}`);
+
+export const deleteSet = (game: string, set_id: string) =>
+  api.delete(`/inventory/set/${game}/${set_id}`);
 
 export const importTCGPlayerCSV = (file: File) => {
   const form = new FormData();

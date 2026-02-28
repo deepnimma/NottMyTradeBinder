@@ -30,6 +30,12 @@ class Settings(BaseSettings):
     ebay_sandbox_payment_policy_id: str = ""
     ebay_sandbox_return_policy_id: str = ""
 
+    # eBay merchant location — required fields for auto-creating a location
+    # key: arbitrary identifier, max 36 chars
+    ebay_merchant_location_key: str = "home"
+    ebay_merchant_location_phone: str = ""      # required by eBay, e.g. "5551234567"
+    ebay_merchant_location_postal_code: str = ""  # required for WAREHOUSE type, e.g. "10001"
+
     @property
     def ebay_active_client_id(self) -> str:
         return self.ebay_sandbox_client_id if self.ebay_sandbox else self.ebay_client_id

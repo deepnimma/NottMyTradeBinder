@@ -1,8 +1,10 @@
 import { useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import axios from "axios";
 import {
   getInventory,
   deleteInventoryItem,
+  deleteSet,
   importTCGPlayerCSV,
   exportTCGPlayerCSV,
   listOnEbay,
@@ -11,6 +13,7 @@ import {
   delistSetFromEbay,
   publishSetToEbay,
   updateInventoryItem,
+  bulkPriceUpdate,
   InventoryItemOut,
 } from "../api";
 import SyncStatusBadge from "../components/SyncStatusBadge";
@@ -28,6 +31,21 @@ export default function InventoryList() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Collapse state
+  const [collapsedSets, setCollapsedSets] = useState<Set<string>>(new Set());
+  const toggleCollapse = (key: string) =>
+    setCollapsedSets((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
+  // Bulk price state: which set is open, mode, and value
+  const [bulkPriceSet, setBulkPriceSet] = useState<string | null>(null);
+  const [bulkMode, setBulkMode] = useState<"multiply" | "flat">("multiply");
+  const [bulkValue, setBulkValue] = useState("1.3");
 
   const handleImportCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -59,7 +77,11 @@ export default function InventoryList() {
       await fn();
       qc.invalidateQueries({ queryKey: ["inventory"] });
     } catch (e: unknown) {
-      alert(`Error: ${e instanceof Error ? e.message : String(e)}`);
+      let msg = e instanceof Error ? e.message : String(e);
+      if (axios.isAxiosError(e) && e.response?.data?.detail) {
+        msg = String(e.response.data.detail);
+      }
+      alert(`Error: ${msg}`);
     } finally {
       setBusyId(null);
     }
@@ -88,7 +110,21 @@ export default function InventoryList() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold">Inventory ({items.length})</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold">Inventory ({items.length})</h1>
+          <button
+            onClick={() => setCollapsedSets(new Set(Object.keys(setGroups)))}
+            className="px-2 py-1 text-xs bg-[#222] hover:bg-[#2a2a2a] rounded text-neutral-400"
+          >
+            Collapse All
+          </button>
+          <button
+            onClick={() => setCollapsedSets(new Set())}
+            className="px-2 py-1 text-xs bg-[#222] hover:bg-[#2a2a2a] rounded text-neutral-400"
+          >
+            Expand All
+          </button>
+        </div>
         <div className="flex items-center gap-2">
           <input
             type="search"
@@ -122,21 +158,50 @@ export default function InventoryList() {
         const groupBusyKey = `set-${groupKey}`;
         const allGroupListed = group.items.length > 0 && group.items.every((i) => !!i.ebay_group_key);
         const stagedCount = group.items.filter((i) => i.staged).length;
+        const isBulkOpen = bulkPriceSet === groupKey;
+        const isCollapsed = collapsedSets.has(groupKey);
+
+        const applyBulkPrice = async () => {
+          const val = parseFloat(bulkValue);
+          if (isNaN(val) || val <= 0) return;
+          const updates = group.items
+            .filter((i) => bulkMode === "flat" || (i.tcgplayer_price && parseFloat(i.tcgplayer_price) > 0))
+            .map((i) => ({
+              id: i.id,
+              ebay_price: bulkMode === "flat" ? val : Math.round(parseFloat(i.tcgplayer_price!) * val * 100) / 100,
+            }));
+          if (updates.length === 0) return;
+          await act(`${groupBusyKey}-bulk`, () => bulkPriceUpdate(updates));
+          setBulkPriceSet(null);
+        };
 
         return (
           <div key={groupKey} className="space-y-2">
             {/* Set header */}
             <div className="flex items-center justify-between px-1">
-              <h2 className="text-sm font-semibold text-neutral-400 uppercase tracking-wide">
-                {group.set_name}
-                <span className="ml-2 text-neutral-600 font-normal normal-case">({group.items.length} cards)</span>
-                {stagedCount > 0 && (
-                  <span className="ml-2 text-xs bg-orange-900/60 text-orange-300 rounded px-1.5 py-0.5 normal-case font-normal">
-                    {stagedCount} staged
-                  </span>
-                )}
-              </h2>
+              <button
+                onClick={() => toggleCollapse(groupKey)}
+                className="flex items-center gap-2 text-left hover:text-white transition-colors"
+              >
+                <span className="text-neutral-600 text-xs">{isCollapsed ? "▶" : "▼"}</span>
+                <h2 className="text-sm font-semibold text-neutral-400 uppercase tracking-wide">
+                  {group.set_name}
+                  <span className="ml-2 text-neutral-600 font-normal normal-case">({group.items.length} cards)</span>
+                  {stagedCount > 0 && (
+                    <span className="ml-2 text-xs bg-orange-900/60 text-orange-300 rounded px-1.5 py-0.5 normal-case font-normal">
+                      {stagedCount} staged
+                    </span>
+                  )}
+                </h2>
+              </button>
               <div className="flex items-center gap-1.5">
+                {/* Bulk price button */}
+                <button
+                  onClick={() => { setBulkPriceSet(isBulkOpen ? null : groupKey); setBulkValue("1.3"); setBulkMode("multiply"); }}
+                  className={`px-2 py-1 text-xs rounded ${isBulkOpen ? "bg-red-900/60 text-red-300" : "bg-[#222] hover:bg-[#2a2a2a] text-neutral-400"}`}
+                >
+                  {isBulkOpen ? "Cancel" : "Bulk Price"}
+                </button>
                 {/* Publish button — visible when there are staged items */}
                 {stagedCount > 0 && (
                   <button
@@ -148,6 +213,18 @@ export default function InventoryList() {
                     {busyId === `${groupBusyKey}-publish` ? "Publishing…" : `Publish to eBay (${stagedCount})`}
                   </button>
                 )}
+                {/* Delete set */}
+                <button
+                  onClick={() => {
+                    if (confirm(`Delete all ${group.items.length} cards in "${group.set_name}"?`)) {
+                      act(`${groupBusyKey}-delete`, () => deleteSet(group.game, group.set_id));
+                    }
+                  }}
+                  disabled={busyId === `${groupBusyKey}-delete`}
+                  className="px-2 py-1 text-xs bg-[#1a1a1a] hover:bg-red-950 rounded text-neutral-600 hover:text-red-400"
+                >
+                  {busyId === `${groupBusyKey}-delete` ? "Deleting…" : "Delete Set"}
+                </button>
                 {/* Delist / List Set button */}
                 {allGroupListed ? (
                   <button
@@ -170,8 +247,63 @@ export default function InventoryList() {
               </div>
             </div>
 
+            {/* Bulk price panel */}
+            {!isCollapsed && isBulkOpen && (
+              <div className="bg-[#111111] border border-[#2a2a2a] rounded-lg px-4 py-3 flex flex-wrap items-center gap-3">
+                <span className="text-xs text-neutral-400 font-medium">Set eBay prices for {group.set_name}:</span>
+                <div className="flex items-center gap-1 bg-[#1a1a1a] rounded p-0.5">
+                  <button
+                    onClick={() => setBulkMode("multiply")}
+                    className={`px-2 py-1 text-xs rounded transition-colors ${bulkMode === "multiply" ? "bg-red-700 text-white" : "text-neutral-400 hover:text-white"}`}
+                  >
+                    × TCG price
+                  </button>
+                  <button
+                    onClick={() => setBulkMode("flat")}
+                    className={`px-2 py-1 text-xs rounded transition-colors ${bulkMode === "flat" ? "bg-red-700 text-white" : "text-neutral-400 hover:text-white"}`}
+                  >
+                    Flat $
+                  </button>
+                </div>
+                {bulkMode === "multiply" && (
+                  <div className="flex items-center gap-1">
+                    {["1.0", "1.1", "1.2", "1.3", "1.5", "2.0"].map((p) => (
+                      <button
+                        key={p}
+                        onClick={() => setBulkValue(p)}
+                        className={`px-1.5 py-0.5 text-xs rounded ${bulkValue === p ? "bg-red-700 text-white" : "bg-[#1a1a1a] text-neutral-400 hover:text-white"}`}
+                      >
+                        {p}×
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <input
+                  type="number"
+                  step={bulkMode === "multiply" ? "0.05" : "0.01"}
+                  min="0"
+                  value={bulkValue}
+                  onChange={(e) => setBulkValue(e.target.value)}
+                  className="w-20 bg-[#1a1a1a] border border-[#333] rounded px-2 py-1 text-xs focus:outline-none focus:border-red-600"
+                  placeholder={bulkMode === "multiply" ? "1.3" : "9.99"}
+                />
+                <span className="text-xs text-neutral-500">
+                  {bulkMode === "multiply"
+                    ? `→ e.g. TCG $1.00 = eBay $${(parseFloat(bulkValue) || 0).toFixed(2)}`
+                    : `→ all items set to $${(parseFloat(bulkValue) || 0).toFixed(2)}`}
+                </span>
+                <button
+                  onClick={applyBulkPrice}
+                  disabled={busyId === `${groupBusyKey}-bulk`}
+                  className="px-3 py-1 text-xs bg-red-700 hover:bg-red-600 disabled:opacity-50 rounded ml-auto"
+                >
+                  {busyId === `${groupBusyKey}-bulk` ? "Applying…" : `Apply to ${group.items.length} cards`}
+                </button>
+              </div>
+            )}
+
             {/* Cards in this set */}
-            {group.items.map((item) => (
+            {!isCollapsed && group.items.map((item) => (
               <div
                 key={item.id}
                 className="bg-[#111111] border border-[#2a2a2a] rounded-xl p-4 flex items-start gap-4"

@@ -11,6 +11,7 @@ Auth: OAuth 2.0 Authorization Code Grant.
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
+from urllib.parse import urlencode
 
 import httpx
 
@@ -29,8 +30,31 @@ _AUTH_BASE = {
 }
 
 SCOPES = [
+    "https://api.ebay.com/oauth/api_scope",
+    "https://api.ebay.com/oauth/api_scope/sell.marketing.readonly",
+    "https://api.ebay.com/oauth/api_scope/sell.marketing",
+    "https://api.ebay.com/oauth/api_scope/sell.inventory.readonly",
     "https://api.ebay.com/oauth/api_scope/sell.inventory",
+    "https://api.ebay.com/oauth/api_scope/sell.account.readonly",
+    "https://api.ebay.com/oauth/api_scope/sell.account",
+    "https://api.ebay.com/oauth/api_scope/sell.fulfillment.readonly",
     "https://api.ebay.com/oauth/api_scope/sell.fulfillment",
+    "https://api.ebay.com/oauth/api_scope/sell.analytics.readonly",
+    "https://api.ebay.com/oauth/api_scope/sell.finances",
+    "https://api.ebay.com/oauth/api_scope/sell.payment.dispute",
+    "https://api.ebay.com/oauth/api_scope/commerce.identity.readonly",
+    "https://api.ebay.com/oauth/api_scope/sell.reputation",
+    "https://api.ebay.com/oauth/api_scope/sell.reputation.readonly",
+    "https://api.ebay.com/oauth/api_scope/commerce.notification.subscription",
+    "https://api.ebay.com/oauth/api_scope/commerce.notification.subscription.readonly",
+    "https://api.ebay.com/oauth/api_scope/sell.stores",
+    "https://api.ebay.com/oauth/api_scope/sell.stores.readonly",
+    "https://api.ebay.com/oauth/scope/sell.edelivery",
+    "https://api.ebay.com/oauth/api_scope/commerce.vero",
+    "https://api.ebay.com/oauth/api_scope/sell.inventory.mapping",
+    "https://api.ebay.com/oauth/api_scope/commerce.message",
+    "https://api.ebay.com/oauth/api_scope/commerce.feedback",
+    "https://api.ebay.com/oauth/api_scope/commerce.shipping",
 ]
 
 # In-process token store (single-seller app)
@@ -40,12 +64,13 @@ _access_expiry: datetime | None = None
 
 
 def init_tokens_from_env() -> None:
-    """Load refresh token from .env on startup, bypassing the OAuth flow."""
-    global _refresh_token
+    """Load the user access token from .env and use it directly as the Bearer token."""
+    global _access_token, _access_expiry
     token = settings.ebay_active_refresh_token
     if token:
-        _refresh_token = token
-        logger.info("eBay refresh token loaded from environment")
+        _access_token = token
+        _access_expiry = None  # no expiry tracking; eBay returns 401 when it expires
+        logger.info("eBay user token loaded from environment")
 
 
 def _base() -> str:
@@ -60,16 +85,14 @@ def get_auth_url() -> str:
     """Build the eBay OAuth login URL for the seller to authorize the app."""
     if not settings.ebay_active_client_id:
         raise RuntimeError("EBAY_CLIENT_ID not configured")
-    scope_str = " ".join(SCOPES)
-    callback = f"{settings.app_base_url}/api/ebay/callback"
-    return (
-        f"{_auth_base()}/oauth2/authorize"
-        f"?client_id={settings.ebay_active_client_id}"
-        f"&response_type=code"
-        f"&redirect_uri={settings.ebay_active_redirect_uri}"
-        f"&scope={scope_str}"
-        f"&state=tradebinder"
-    )
+    params = {
+        "client_id": settings.ebay_active_client_id,
+        "response_type": "code",
+        "redirect_uri": settings.ebay_active_redirect_uri,
+        "scope": " ".join(SCOPES),
+        "state": "tradebinder",
+    }
+    return f"{_auth_base()}/oauth2/authorize?{urlencode(params)}"
 
 
 async def exchange_code(code: str) -> None:
@@ -111,7 +134,12 @@ async def _refresh_access_token() -> None:
             auth=(settings.ebay_active_client_id, settings.ebay_active_client_secret),
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
-        resp.raise_for_status()
+        if not resp.is_success:
+            try:
+                detail = resp.json()
+            except Exception:
+                detail = resp.text
+            raise RuntimeError(f"eBay token refresh failed {resp.status_code}: {detail}")
         data = resp.json()
         _access_token = data["access_token"]
         _access_expiry = datetime.now(timezone.utc) + timedelta(seconds=int(data.get("expires_in", 7200)))
@@ -120,12 +148,14 @@ async def _refresh_access_token() -> None:
 
 async def _get_token() -> str:
     now = datetime.now(timezone.utc)
-    if _access_token and _access_expiry and now < _access_expiry - timedelta(minutes=5):
-        return _access_token
+    if _access_token:
+        # If no expiry set (token from env), use directly; otherwise check expiry
+        if _access_expiry is None or now < _access_expiry - timedelta(minutes=5):
+            return _access_token
     if _refresh_token:
         await _refresh_access_token()
         return _access_token
-    raise RuntimeError("eBay not authenticated. Visit /api/ebay/auth-url to connect.")
+    raise RuntimeError("eBay not authenticated. Set EBAY_REFRESH_TOKEN in .env.")
 
 
 async def _request(method: str, path: str, **kwargs) -> Any:
@@ -134,6 +164,7 @@ async def _request(method: str, path: str, **kwargs) -> Any:
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
         "Accept": "application/json",
+        "Content-Language": "en-US",
     }
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.request(
@@ -141,8 +172,86 @@ async def _request(method: str, path: str, **kwargs) -> Any:
         )
         if resp.status_code == 204:
             return {}
-        resp.raise_for_status()
+        if not resp.is_success:
+            try:
+                detail = resp.json()
+            except Exception:
+                detail = resp.text
+            logger.error("eBay API %s %s → %s: %s", method.upper(), path, resp.status_code, detail)
+            raise RuntimeError(f"eBay API error {resp.status_code}: {detail}")
         return resp.json()
+
+
+# ── Merchant Location ──────────────────────────────────────────────────────────
+
+async def create_merchant_location(key: str = "home", country: str = "US") -> dict:
+    """
+    POST /sell/inventory/v1/location/{key}
+    phone and postalCode are required by eBay — set in .env:
+      EBAY_MERCHANT_LOCATION_PHONE=5551234567
+      EBAY_MERCHANT_LOCATION_POSTAL_CODE=10001
+    Content-Language header intentionally omitted (location endpoint rejects it).
+    """
+    phone = settings.ebay_merchant_location_phone
+    postal_code = settings.ebay_merchant_location_postal_code
+    if not phone or not postal_code:
+        raise RuntimeError(
+            "Cannot auto-create eBay merchant location: "
+            "EBAY_MERCHANT_LOCATION_PHONE and EBAY_MERCHANT_LOCATION_POSTAL_CODE "
+            "must be set in .env."
+        )
+
+    token = await _get_token()
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+    payload = {
+        "location": {"address": {"country": country, "postalCode": postal_code}},
+        "name": "My Warehouse",
+        "phone": phone,
+        "merchantLocationStatus": "ENABLED",
+    }
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.post(
+            f"{_base()}/sell/inventory/v1/location/{key}",
+            headers=headers,
+            json=payload,
+        )
+        if resp.status_code in (200, 204):
+            logger.info("eBay merchant location '%s' created", key)
+            return resp.json() if resp.content else {}
+        if resp.status_code == 409:
+            logger.debug("eBay merchant location '%s' already exists", key)
+            return {}
+        try:
+            detail = resp.json()
+        except Exception:
+            detail = resp.text
+        raise RuntimeError(f"eBay location create failed {resp.status_code}: {detail}")
+
+
+async def get_merchant_location_key() -> str:
+    """
+    Return a valid merchant location key for this account.
+    Lists all locations; returns the first ENABLED one.
+    Raises RuntimeError with setup instructions if none exist.
+    """
+    data = await _request("GET", "/sell/inventory/v1/location")
+    locations = data.get("locations", [])
+    enabled = [loc for loc in locations if loc.get("merchantLocationStatus") == "ENABLED"]
+    if enabled:
+        key = enabled[0]["merchantLocationKey"]
+        logger.debug("Using eBay merchant location key '%s'", key)
+        return key
+    if locations:
+        key = locations[0]["merchantLocationKey"]
+        logger.warning("No ENABLED eBay location found; using '%s'", key)
+        return key
+    logger.info("No eBay merchant locations found; creating default location 'home'")
+    await create_merchant_location(key="home", country="US")
+    return "home"
 
 
 # ── Inventory ──────────────────────────────────────────────────────────────────
@@ -193,8 +302,13 @@ async def create_or_replace_inventory_item_group(
     payload: dict = {
         "title": title,
         "description": description,
-        "aspects": aspects,
         "variantSKUs": sku_list,
+        "variesBy": {
+            "specifications": [
+                {"name": name, "values": values}
+                for name, values in aspects.items()
+            ]
+        },
     }
     if image_urls:
         payload["imageUrls"] = image_urls[:12]  # eBay supports up to 12 images
@@ -203,28 +317,17 @@ async def create_or_replace_inventory_item_group(
     )
 
 
-async def create_offer_for_group(
-    group_key: str,
-    price: float,
-    marketplace_id: str = "EBAY_US",
-    category_id: str = "2536",
-) -> dict:
-    """POST /sell/inventory/v1/offer — create an offer for a multi-variation group."""
-    payload = {
-        "inventoryItemGroupKey": group_key,
-        "marketplaceId": marketplace_id,
-        "format": "FIXED_PRICE",
-        "listingDuration": "GTC",
-        "pricingSummary": {"price": {"value": str(round(price, 2)), "currency": "USD"}},
-        "categoryId": category_id,
-        "listingPolicies": settings.ebay_active_policy_ids,
-    }
-    return await _request("POST", "/sell/inventory/v1/offer", json=payload)
+def _listing_policies() -> dict:
+    """Return only non-empty policy IDs to avoid eBay 500 errors on blank values."""
+    raw = settings.ebay_active_policy_ids
+    return {k: v for k, v in raw.items() if v}
+
 
 
 async def create_offer(
     sku: str,
     price: float,
+    merchant_location_key: str = "",
     listing_duration: str = "GTC",  # Good Till Cancelled
     marketplace_id: str = "EBAY_US",
     category_id: str = "2536",  # Trading Card Games category
@@ -237,9 +340,18 @@ async def create_offer(
         "listingDuration": listing_duration,
         "pricingSummary": {"price": {"value": str(round(price, 2)), "currency": "USD"}},
         "categoryId": category_id,
-        "listingPolicies": settings.ebay_active_policy_ids,
+        "merchantLocationKey": merchant_location_key or settings.ebay_merchant_location_key,
     }
+    policies = _listing_policies()
+    if policies:
+        payload["listingPolicies"] = policies
     return await _request("POST", "/sell/inventory/v1/offer", json=payload)
+
+
+async def get_offers_for_sku(sku: str) -> list[dict]:
+    """GET /sell/inventory/v1/offer?sku={sku} — list existing offers for a SKU."""
+    data = await _request("GET", "/sell/inventory/v1/offer", params={"sku": sku})
+    return data.get("offers", [])
 
 
 async def publish_offer(offer_id: str) -> dict:
